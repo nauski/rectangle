@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python:
+    name: Python syntax & import
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Byte-compile all modules
+        run: python -m py_compile rectangle/*.py
+      - name: Import the dependency-free modules
+        # backend + cli use only the stdlib; panel needs GTK so is imported lazily.
+        run: python -c "import rectangle.backend, rectangle.cli"
+      - name: CLI --help works
+        run: python -m rectangle --help
+
+  nix:
+    name: Nix flake check & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: flake check
+        run: nix flake check --print-build-logs
+      - name: build the package
+        run: nix build .#rectangle --print-build-logs
