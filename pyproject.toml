@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rectangle-recorder"
+version = "0.1.0"
+description = "Draw a rectangle on a wlroots screen, record it, get a GIF or mp4 on your clipboard."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "nauski" }]
+keywords = ["wayland", "wlroots", "hyprland", "sway", "screen-recorder", "gif"]
+classifiers = [
+    "Environment :: X11 Applications :: Gtk",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Multimedia :: Video :: Capture",
+]
+# No Python runtime deps for the CLI. The GUI needs PyGObject (system GTK4).
+dependencies = []
+
+[project.optional-dependencies]
+gui = ["PyGObject>=3.42"]
+
+[project.scripts]
+rectangle = "rectangle.cli:main"
+
+[project.gui-scripts]
+rectangle-gui = "rectangle.panel:run"
+
+[tool.setuptools]
+packages = ["rectangle"]
+
+[project.urls]
+Homepage = "https://github.com/nauski/rectangle"
