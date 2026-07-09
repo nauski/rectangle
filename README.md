@@ -103,7 +103,8 @@ that float and pin it out of frame.
 - **GUI panel and the frame.** Because `wf-recorder` captures a fixed
   rectangle, only what's *inside* that rectangle is recorded. Keep the panel
   outside your capture area (the provided window rule pins it to a corner). The
-  panel auto-hides while you draw the selection.
+  panel stays wherever you place it — it is never unmapped, so the compositor
+  won't re-center it mid-capture.
 - **Clipboard is Wayland-native** (`wl-copy`). The GIF is offered as
   `image/gif`; most chat apps accept a paste. Some apps only accept file drops —
   in that case use the saved file in `~/Videos`.

@@ -141,8 +141,10 @@ class Panel(Gtk.ApplicationWindow):
 
     # -- region selection ----------------------------------------------------
     def on_select(self, _btn: Gtk.Button) -> None:
-        self.set_visible(False)
-
+        # Note: we deliberately do NOT hide the window here. Unmapping it makes
+        # the compositor re-place (usually re-center) it on the next map, since
+        # Wayland clients can't set their own position — that would lose wherever
+        # the user parked the panel. Keeping it mapped preserves the position.
         def worker():
             try:
                 geom = backend.select_region()
@@ -154,7 +156,6 @@ class Panel(Gtk.ApplicationWindow):
         threading.Thread(target=worker, daemon=True).start()
 
     def _after_select(self, geom: str | None, err: str | None) -> bool:
-        self.set_visible(True)
         if err:
             self.status.set_text(err)
         elif geom:
@@ -180,7 +181,6 @@ class Panel(Gtk.ApplicationWindow):
         def worker():
             geom = self.geometry
             if geom is None:
-                self.set_visible(False)
                 try:
                     geom = backend.select_region()
                 except RuntimeError as e:
@@ -199,13 +199,11 @@ class Panel(Gtk.ApplicationWindow):
         threading.Thread(target=worker, daemon=True).start()
 
     def _start_failed(self, msg: str) -> bool:
-        self.set_visible(True)
         self.record_btn.set_sensitive(True)
         self.status.set_text(msg)
         return False
 
     def _start_cancelled(self) -> bool:
-        self.set_visible(True)
         self.record_btn.set_sensitive(True)
         self.status.set_text("selection cancelled")
         return False
@@ -214,7 +212,6 @@ class Panel(Gtk.ApplicationWindow):
         self.session = sess
         self.geometry = geom
         self.region_lbl.set_text(f"region: {geom}")
-        self.set_visible(True)
         self.record_btn.set_sensitive(True)
         self.record_btn.set_label("■  Stop  ·  00:00")
         self.record_btn.remove_css_class("suggested-action")
