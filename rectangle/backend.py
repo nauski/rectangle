@@ -83,6 +83,7 @@ class Settings:
     to_clipboard: bool = True
     to_file: bool = True
     audio: bool = False        # mp4 only; gif drops audio
+    codec: str = "auto"        # mp4 encoder: "auto" | "vaapi" | "x264"
 
     @staticmethod
     def load() -> "Settings":
@@ -156,12 +157,23 @@ def _pid_alive(pid: int) -> bool:
 # --- pipeline steps ----------------------------------------------------------
 
 
+# slurp styling: a gentle dark dim outside the selection (not the default
+# white "flashbang"), a fully transparent interior so you see what you're
+# framing, and a thin accent border. Overridable via RECTANGLE_SLURP_ARGS.
+_SLURP_STYLE = [
+    "-b", "1c1c1c99",   # background dim outside selection (dark, ~60%)
+    "-s", "00000000",   # selection interior fully transparent
+    "-c", "4a90d9ff",   # border accent
+    "-w", "2",          # border weight
+]
+
+
 def select_region() -> str | None:
     """Run slurp; return slurp-format geometry, or None if cancelled."""
+    extra = os.environ.get("RECTANGLE_SLURP_ARGS")
+    args = ["slurp"] + (extra.split() if extra else _SLURP_STYLE)
     try:
-        out = subprocess.run(
-            ["slurp"], capture_output=True, text=True
-        )
+        out = subprocess.run(args, capture_output=True, text=True)
     except FileNotFoundError:
         raise RuntimeError("slurp is not installed")
     geom = out.stdout.strip()
@@ -243,17 +255,7 @@ def _encode(raw: Path, settings: Settings) -> Path:
     stem = raw.stem
 
     if settings.fmt == "mp4":
-        out = dest_dir / f"{stem}.mp4"
-        # raw is already h264 in mkv; remux/transcode to a widely-compatible mp4
-        cmd = [
-            "ffmpeg", "-y", "-i", str(raw),
-            "-movflags", "+faststart",
-            "-pix_fmt", "yuv420p",
-            "-c:v", "libx264", "-crf", "20", "-preset", "veryfast",
-            str(out),
-        ]
-        _run_ffmpeg(cmd)
-        return out
+        return _encode_mp4(raw, dest_dir / f"{stem}.mp4", settings)
 
     # GIF with a proper generated palette (two-pass in one graph)
     out = dest_dir / f"{stem}.gif"
@@ -266,6 +268,70 @@ def _encode(raw: Path, settings: Settings) -> Path:
     cmd = ["ffmpeg", "-y", "-i", str(raw), "-vf", vf, "-loop", "0", str(out)]
     _run_ffmpeg(cmd)
     return out
+
+
+def _vaapi_device() -> str | None:
+    """Pick a VAAPI render node, honouring RECTANGLE_VAAPI_DEVICE."""
+    env = os.environ.get("RECTANGLE_VAAPI_DEVICE")
+    if env:
+        return env if Path(env).exists() else None
+    nodes = sorted(Path("/dev/dri").glob("renderD*")) if Path("/dev/dri").is_dir() else []
+    return str(nodes[0]) if nodes else None
+
+
+def _mp4_x264(raw: Path, out: Path) -> list[str]:
+    return [
+        "ffmpeg", "-y", "-i", str(raw),
+        "-movflags", "+faststart",
+        "-pix_fmt", "yuv420p",
+        "-c:v", "libx264", "-crf", "20", "-preset", "veryfast",
+        str(out),
+    ]
+
+
+def _mp4_vaapi(raw: Path, out: Path, device: str) -> list[str]:
+    # software-decode the raw capture, upload to the GPU, encode with h264_vaapi
+    return [
+        "ffmpeg", "-y", "-vaapi_device", device, "-i", str(raw),
+        "-vf", "format=nv12,hwupload",
+        "-c:v", "h264_vaapi", "-qp", "24",
+        "-movflags", "+faststart",
+        str(out),
+    ]
+
+
+def _encode_mp4(raw: Path, out: Path, settings: Settings) -> Path:
+    """Encode mp4, using VAAPI when requested/available, falling back to x264."""
+    codec = settings.codec
+    device = _vaapi_device()
+    use_vaapi = codec == "vaapi" or (codec == "auto" and device is not None
+                                     and _encoder_available("h264_vaapi"))
+    if use_vaapi and device:
+        try:
+            _run_ffmpeg(_mp4_vaapi(raw, out, device))
+            return out
+        except RuntimeError:
+            if codec == "vaapi":
+                raise  # user explicitly asked for it; don't hide the failure
+            # auto: hardware path failed, fall back to software silently
+    _run_ffmpeg(_mp4_x264(raw, out))
+    return out
+
+
+_ENCODER_CACHE: dict[str, bool] = {}
+
+
+def _encoder_available(name: str) -> bool:
+    if name not in _ENCODER_CACHE:
+        try:
+            res = subprocess.run(
+                ["ffmpeg", "-hide_banner", "-encoders"],
+                capture_output=True, text=True, timeout=10,
+            )
+            _ENCODER_CACHE[name] = name in res.stdout
+        except (subprocess.SubprocessError, FileNotFoundError):
+            _ENCODER_CACHE[name] = False
+    return _ENCODER_CACHE[name]
 
 
 def _run_ffmpeg(cmd: list[str]) -> None:

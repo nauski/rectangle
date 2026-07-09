@@ -34,11 +34,15 @@ def _add_output_flags(p: argparse.ArgumentParser) -> None:
                    help="do not save a file (clipboard only)")
     p.add_argument("--audio", action="store_true", default=None,
                    help="capture audio (mp4 only)")
+    p.add_argument("--vaapi", dest="codec", action="store_const", const="vaapi",
+                   help="encode mp4 with VAAPI hardware acceleration")
+    p.add_argument("--x264", dest="codec", action="store_const", const="x264",
+                   help="encode mp4 with software libx264")
 
 
 def _merge_settings(args: argparse.Namespace) -> Settings:
     s = Settings.load()
-    for attr in ("fmt", "fps", "scale_width", "to_clipboard", "to_file", "audio"):
+    for attr in ("fmt", "fps", "scale_width", "to_clipboard", "to_file", "audio", "codec"):
         val = getattr(args, attr, None)
         if val is not None:
             setattr(s, attr, val)
