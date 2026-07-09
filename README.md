@@ -11,6 +11,8 @@ video clips.
 press key → drag a box → press key again → gif is on your clipboard
 ```
 
+![rectangle in action](docs/demo.gif)
+
 ## Why
 
 You're watching a funny video. You want to send a few seconds of it as a GIF.
@@ -80,7 +82,12 @@ rectangle --fps 30              # smoother (bigger) gif
 rectangle --width 640           # scale the gif down to 640px wide
 rectangle --no-file             # clipboard only, don't save to ~/Videos
 rectangle --mp4 --audio         # mp4 with audio
+rectangle --mp4 --vaapi         # hardware-encode the mp4 (VAAPI); --x264 forces software
 ```
+
+For mp4, the encoder defaults to `auto`: it uses VAAPI hardware encoding when a
+render node and `h264_vaapi` are available, and silently falls back to software
+`libx264` otherwise. GIF encoding is always done on the CPU (palette work).
 
 Defaults are read from `~/.config/rectangle/config.json` and can be changed in
 the GUI.
@@ -94,6 +101,8 @@ rectangle gui
 A small floating panel with Record/Stop, format (GIF/MP4), fps and destination
 toggles. See [`contrib/hyprland.conf`](contrib/hyprland.conf) for window rules
 that float and pin it out of frame.
+
+![the control panel](docs/panel.png)
 
 ## Notes & limitations
 
